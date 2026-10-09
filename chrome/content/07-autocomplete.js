@@ -230,14 +230,6 @@ function acHideNativeSuppression() {
   document.body.classList.remove(AC_BODY_OPEN_CLS);
 }
 
-function acShowNativeSuppression() {
-  acEnsureGlobalStyle();
-  document.body.classList.add(AC_BODY_OPEN_CLS);
-}
-
-function acHideNativeSuppression() {
-  document.body.classList.remove(AC_BODY_OPEN_CLS);
-}
 
 // ─── Abrir/fechar ─────────────────────────────────────────────────────────────
 
