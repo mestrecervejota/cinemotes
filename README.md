@@ -91,71 +91,23 @@ deadline, autocomplete, menu, tooltip e observer do chat virtualizado.
 
 ## Estrutura do projeto
 
-``` text
-.
-├── manifest.json
-├── main-world.js             # Observação de fetch/XHR no MAIN world
-├── background.js             # Service worker: APIs e caches
-├── styles.css                # Tooltip, autocomplete e menu
-├── src/
-│   ├── icon16.png
-│   ├── icon48.png
-│   └── icon128.png
-└── content/
-    ├── 00-core.js            # Constantes e utilitários
-    ├── 01-state.js           # Maps, trie e versão
-    ├── 02-tooltip.js         # Tooltip de hover
-    ├── 03-emotes-map.js      # Merge por prioridade
-    ├── 04-parser.js          # Substituição de texto por emotes
-    ├── 05-bridge.js          # Comunicação com o service worker
-    ├── 06-cinefy.js          # Bridge Cinefy (main → content)
-    ├── 07-autocomplete.js    # Popup de autocomplete
-    ├── 08-menu.js            # Botão e painel de emotes
-    ├── 09-recents.js         # Persistência de recentes
-    ├── 10-chat-observer.js   # Observação do chat virtualizado
-    └── 11-init.js            # Inicialização e troca de canal
-```
+- **chrome/**: manifest Chrome, background.js (service worker), main-world.js,
+  styles.css, assets/ e content/.
+- **firefox/**: manifest Firefox, background.js (scripts de background),
+  main-world.js, styles.css, assets/ e content/.
+- **legacy/**: refer?ncia antiga, n?o utilizada e mantida intacta.
+- **README.md**: instru??es das duas vers?es.
 
-> **Importante:** a ordem dos content scripts definida no
-> `manifest.json` importa, pois cada arquivo pode depender dos
-> anteriores.
+C?digo e imagens foram duplicados intencionalmente para permitir instala??o
+sem ferramentas. Nenhuma extens?o cont?m a outra. Cada pasta tem seu
+pr?prio manifest.json e assets/. Os arquivos content.js antigos foram
+preservados, mas n?o s?o carregados pelo manifest. O m?dulo
+content/12-message-history.js tamb?m permanece fora do carregamento atual.
 
-## Limitações conhecidas
+A ordem de content scripts em cada manifest importa.
 
--   **Efeitos do BTTV:** `c!`, `w!`, `v!` e os overlays `RainTime` e
-    `cvHazmat` ainda não são implementados e aparecem como texto puro.
--   **Tooltip em emotes nativos da Cinefy:** o comportamento é
-    inconsistente em alguns canais. Não impede o uso normal da extensão.
--   **Favoritos:** ainda não implementados.
--   **Histórico de mensagens com `↑`:** ainda não implementado.
+Refer?ncias Firefox:
+- https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/manifest.json/background
+- https://extensionworkshop.com/documentation/develop/firefox-builtin-data-consent/
 
-## Roadmap
 
--   [ ] Implementar os efeitos do BTTV (`c!`, `w!`, `v!` e overlays).
--   [ ] Tornar consistente o tooltip dos emotes nativos da Cinefy.
--   [ ] Adicionar favoritos persistidos.
--   [ ] Permitir navegar pelas mensagens enviadas com `↑`.
--   [ ] Criar uma página de opções para desabilitar providers, ajustar a
-    altura dos emotes e configurar outras preferências.
-
-## Privacidade
-
-A extensão **não coleta dados do usuário**. Não utiliza analytics,
-telemetria ou servidor próprio. As chamadas de rede são feitas
-diretamente às APIs públicas dos providers e serviços utilizados: BTTV,
-FFZ, 7TV, `decapi.me`, `api.ivr.fi` e `api.cinefy.gg`.
-
-O único dado de uso armazenado localmente descrito pela extensão é a
-lista de emotes recentes, salva em `chrome.storage.local`.
-
-## Contribuições
-
-Pull requests são bem-vindos. Para mudanças grandes, abra uma issue
-antes de iniciar o trabalho, para alinhar a abordagem. A extensão
-depende de detalhes do DOM da Cinefy, e alterações aparentemente
-pequenas podem causar problemas em canais específicos.
-
-## Licença
-
-Distribuído sob a licença MIT. Consulte o arquivo `LICENSE` do
-repositório para ver os termos completos.

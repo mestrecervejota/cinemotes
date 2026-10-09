@@ -1,0 +1,346 @@
+/* ─── Emotes no chat ─────────────────────────────────────────────────────── */
+/* Altura fixa em 32px, largura intrínseca limitada a 32px — mantém aspect
+   ratio preservado e elimina CLS vertical. O `object-fit: contain` cobre
+   emotes não-quadrados (letterbox em vez de distorção). */
+.bttv-emote {
+  display: inline-block !important;
+  vertical-align: middle !important;
+  height: 32px !important;
+  max-height: 32px !important;
+  width: auto !important;
+  object-fit: contain !important;
+  margin: -4px 2px !important;
+  cursor: pointer !important;
+}
+
+/* ─── Tooltip (hover card) ───────────────────────────────────────────────── */
+#emote-tooltip {
+  position: fixed;
+  z-index: 999999;
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(4px) scale(.96);
+  transition:
+    opacity .15s cubic-bezier(.16, 1, .3, 1),
+    transform .15s cubic-bezier(.16, 1, .3, 1);
+  background: rgba(15, 15, 20, .96);
+  border: 1px solid rgba(255, 255, 255, .15);
+  border-radius: 10px;
+  padding: 12px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, .7);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+
+  /* Largura fixa: evita medir offsetWidth a cada hover
+     (deve bater com TOOLTIP_WIDTH em content.js) */
+  width: 180px;
+  box-sizing: border-box;
+
+  font-family: Inter, -apple-system, BlinkMacSystemFont, sans-serif;
+
+  /* Promove o tooltip a layer próprio — animar opacity/transform fica
+     fora do main thread de layout/paint. */
+  will-change: opacity, transform;
+}
+
+#emote-tooltip.visible {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+
+.emote-tooltip-preview {
+  max-width: 80px;
+  max-height: 80px;
+  object-fit: contain;
+  margin-bottom: 8px;
+  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, .4));
+}
+
+.emote-tooltip-name {
+  font-weight: 800;
+  font-size: 14px;
+  color: #fff;
+  margin-bottom: 4px;
+  line-height: 1.2;
+  word-break: break-word;
+}
+
+.emote-tooltip-source {
+  font-size: 11px;
+  font-weight: 600;
+  color: #00f0ff;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 2px;
+}
+
+.emote-tooltip-author {
+  font-size: 11px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, .5);
+}
+
+/* ─── Autocomplete próprio ───────────────────────────────────────────────── */
+
+#cinemotes-autocomplete {
+  position: fixed;
+  z-index: 999998;
+  background: rgba(20, 20, 26, 0.98);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.7);
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 4px;
+  font-family: Inter, -apple-system, BlinkMacSystemFont, sans-serif;
+  font-size: 13px;
+  color: #fff;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255,255,255,0.18) transparent;
+}
+
+#cinemotes-autocomplete::-webkit-scrollbar {
+  width: 6px;
+}
+#cinemotes-autocomplete::-webkit-scrollbar-thumb {
+  background: rgba(255,255,255,0.18);
+  border-radius: 3px;
+}
+
+.cinemotes-ac-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.cinemotes-ac-item.cinemotes-ac-highlighted {
+  background: rgba(0, 240, 255, 0.15);
+}
+
+.cinemotes-ac-item img {
+  width: 24px;
+  height: 24px;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+
+.cinemotes-ac-code {
+  flex: 1;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cinemotes-ac-meta {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.45);
+  white-space: nowrap;
+}
+
+.cinemotes-ac-empty {
+  padding: 10px 12px;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 12px;
+  text-align: center;
+}
+
+/* ─── Menu de emotes ─────────────────────────────────────────────────────── */
+
+#cinemotes-menu {
+  position: fixed;
+  z-index: 999997;
+  display: none;
+  flex-direction: column;
+  background: rgba(20, 20, 26, 0.98);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.75);
+  font-family: Inter, -apple-system, BlinkMacSystemFont, sans-serif;
+  font-size: 13px;
+  color: #fff;
+  overflow: hidden;
+}
+
+.cinemotes-menu-header {
+  padding: 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  flex-shrink: 0;
+}
+
+.cinemotes-menu-search-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.cinemotes-menu-search-icon {
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: none;
+  color: rgba(255, 255, 255, 0.4);
+  display: flex;
+  align-items: center;
+  line-height: 0;
+}
+
+.cinemotes-menu-search {
+  width: 100%;
+  padding: 8px 10px 8px 32px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(0, 0, 0, 0.35);
+  color: #fff;
+  font-family: inherit;
+  font-size: 13px;
+  outline: none;
+  box-sizing: border-box;
+}
+
+.cinemotes-menu-search:focus {
+  border-color: rgba(0, 240, 255, 0.5);
+}
+
+.cinemotes-menu-tabs-bar {
+  display: flex;
+  gap: 2px;
+  padding: 6px 8px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  overflow-x: auto;
+  flex-shrink: 0;
+  scrollbar-width: none;
+}
+.cinemotes-menu-tabs-bar::-webkit-scrollbar { display: none; }
+
+.cinemotes-menu-tab {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  color: rgba(255, 255, 255, 0.55);
+  padding: 6px 10px;
+  min-width: 36px;
+  border-radius: 6px 6px 0 0;
+  cursor: pointer;
+  line-height: 0;
+  border-bottom: 2px solid transparent;
+  transition: color 0.1s ease, border-color 0.1s ease;
+}
+
+.cinemotes-menu-tab svg {
+  width: 1.5em;
+  height: 1.5em;
+  display: block;
+}
+
+.cinemotes-menu-tab:hover {
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.cinemotes-menu-tab-active {
+  color: #00f0ff;
+  border-bottom-color: #00f0ff;
+}
+
+.cinemotes-menu-grid {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(48px, 1fr));
+  grid-auto-rows: 48px;
+  gap: 4px;
+  align-content: start;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255,255,255,0.18) transparent;
+}
+
+.cinemotes-menu-grid::-webkit-scrollbar { width: 6px; }
+.cinemotes-menu-grid::-webkit-scrollbar-thumb {
+  background: rgba(255,255,255,0.18);
+  border-radius: 3px;
+}
+
+.cinemotes-menu-item {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  padding: 4px;
+  border: none;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 6px;
+  cursor: pointer;
+  box-sizing: border-box;
+  overflow: hidden;
+  transition: background 0.1s ease;
+}
+
+.cinemotes-menu-item:hover {
+  background: rgba(0, 240, 255, 0.15);
+}
+
+.cinemotes-menu-thumb {
+  width: 35px;
+  height: 35px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.cinemotes-menu-thumb img {
+  max-width: 100%;
+  max-height: 100%;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  display: block;
+}
+
+.cinemotes-menu-empty {
+  grid-column: 1 / -1;
+  padding: 30px 12px;
+  text-align: center;
+  color: rgba(255, 255, 255, 0.45);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+/* ─── Supressão permanente do popup nativo do Cinefy ─────────────────────── */
+/* O Cinefy renderiza seu painel de sugestão dentro de um portal do
+   @floating-ui/react. Nós usamos nosso próprio autocomplete, então o
+   nativo nunca deve aparecer — em nenhum canal, em nenhum estado.
+   `:has()` garante que só afetamos portais que contêm listboxes
+   (não afetamos outros usos de floating-ui que o Cinefy possa ter). */
+[data-floating-ui-portal]:has([role="listbox"]:not(#cinemotes-autocomplete)),
+[data-floating-ui-portal]:has([class*="SuggestionPanel"]) {
+  display: none !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+
+/* ─── Supressão do botão nativo de emotes do Cinefy ──────────────────────── */
+/* Substituímos o botão nativo pelo nosso, na mesma posição. `!important` e
+   o seletor por atributo garantem que sobrevive a re-renders do React. */
+button[aria-label="Emotes"][aria-haspopup="dialog"]:not([data-cinemotes-menu-btn]) {
+  display: none !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+  width: 0 !important;
+  height: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+}

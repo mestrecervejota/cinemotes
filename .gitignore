@@ -9,6 +9,7 @@ Thumbs.db
 # Pacotes e builds (não usamos, mas prevenção)
 node_modules/
 dist/
+legacy/
 *.zip
 *.crx
 *.pem
