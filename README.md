@@ -77,10 +77,20 @@ Requer **Firefox para desktop 140 ou superior**.
 5. Caso o Firefox solicite permissões de acesso ao site, conceda-as.
 6. Para conferir o autocomplete, digite `:kap` no campo de mensagem.
 
-**A instalação é temporária:** a extensão é removida ao fechar o Firefox.
-Na próxima sessão, repita os passos para carregá-la. A instalação
-permanente no Firefox comum exige um pacote assinado pela Mozilla;
-as pastas deste repositório são destinadas à instalação de desenvolvimento.
+**A instalação no Firefox é temporária e destinada aos testes.** Ao fechar
+ou reiniciar o navegador, a extensão é removida. Sempre que abrir o Firefox
+novamente, será necessário repetir os passos acima para reinstalá-la.
+
+### Publicação futura nas lojas oficiais
+
+As versões atuais são instaladas manualmente para testes. Futuramente,
+a Cinemotes será publicada na **Chrome Web Store** e no **Firefox Add-ons
+(AMO)**, as lojas oficiais dos respectivos navegadores.
+
+Após a publicação, será possível instalar a extensão diretamente pela
+loja e mantê-la instalada ao fechar e reabrir o navegador, sem repetir a
+instalação temporária. Os links serão adicionados a este README quando
+as versões estiverem disponíveis.
 
 ### Atualizar após alterações
 
