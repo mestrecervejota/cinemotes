@@ -1,0 +1,51 @@
+{
+  "manifest_version": 3,
+  "name": "Cinemotes - Emotes para o Cinefy",
+  "version": "1.2.2",
+  "description": "Injeta emotes do BTTV, 7TV e FrankerFaceZ no chat do Cinefy com suporte a hover card.",
+  "icons": {
+    "16": "src/icon16.png",
+    "48": "src/icon48.png",
+    "128": "src/icon128.png"
+  },
+  "permissions": [
+    "storage"
+  ],
+  "host_permissions": [
+    "https://api.betterttv.net/*",
+    "https://api.frankerfacez.com/*",
+    "https://7tv.io/*",
+    "https://decapi.me/*",
+    "https://api.ivr.fi/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+  {
+    "matches": ["https://*.cinefy.gg/*"],
+    "js": ["main-world.js"],
+    "world": "MAIN",
+    "run_at": "document_start"
+  },
+  {
+    "matches": ["https://*.cinefy.gg/*"],
+    "js": [
+      "content/00-core.js",
+      "content/01-state.js",
+      "content/02-tooltip.js",
+      "content/03-emotes-map.js",
+      "content/04-parser.js",
+      "content/05-bridge.js",
+      "content/06-cinefy.js",
+      "content/07-autocomplete.js",
+      "content/08-menu.js",
+      "content/09-recents.js",
+      "content/10-chat-observer.js",
+      "content/11-init.js"
+    ],
+    "css": ["styles.css"],
+    "run_at": "document_end"
+  }
+]
+}

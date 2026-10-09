@@ -1,0 +1,14 @@
+# Sistema
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+
+# Pacotes e builds (não usamos, mas prevenção)
+node_modules/
+dist/
+*.zip
+*.crx
+*.pem
