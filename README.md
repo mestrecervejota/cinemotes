@@ -1,95 +1,161 @@
 # Cinemotes
 
-Extensão do Chrome que injeta emotes do **BetterTTV (BTTV)**, **FrankerFaceZ (FFZ)** e **7TV** no chat da [Cinefy](https://cinefy.gg), além de integrar os emotes nativos da plataforma numa experiência unificada.
+Extensão para Chrome que integra emotes do **BetterTTV (BTTV)**,
+**FrankerFaceZ (FFZ)** e \*\*7TV ao chat da [Cinefy](https://cinefy.gg),
+junto dos emotes nativos da plataforma.
 
-## Sobre
+## Índice
 
-A Cinefy tem seu próprio sistema de emotes, mas a comunidade que vem da Twitch sente falta dos catálogos do BTTV, FFZ e 7TV. A Cinemotes resolve isso injetando os três catálogos diretamente no chat, com autocomplete próprio, menu de emotes e prioridades configuráveis.
+-   [Sobre o projeto](#sobre-o-projeto)
+-   [Funcionalidades](#funcionalidades)
+-   [Instalação](#instalação)
+-   [Como funciona](#como-funciona)
+-   [Estrutura do projeto](#estrutura-do-projeto)
+-   [Limitações conhecidas](#limitações-conhecidas)
+-   [Roadmap](#roadmap)
+-   [Privacidade](#privacidade)
+-   [Contribuições](#contribuições)
+-   [Licença](#licença)
 
-O projeto foi construído do zero, sem framework, sem build step. É JavaScript puro rodando num service worker MV3 + content scripts.
+## Sobre o projeto
+
+A Cinefy tem seu próprio sistema de emotes, mas quem vem da Twitch pode
+sentir falta dos catálogos do BTTV, FFZ e 7TV. A Cinemotes integra esses
+três catálogos diretamente ao chat, com autocomplete, menu de emotes e
+prioridades configuráveis.
+
+O projeto foi desenvolvido sem frameworks e sem etapa de build. É
+JavaScript puro, executado por meio de um service worker Manifest V3 e
+content scripts.
 
 ## Funcionalidades
 
-- **Emotes no chat**: reconhecimento automático de códigos do BTTV, FFZ, 7TV e Cinefy nas mensagens.
-- **Autocomplete próprio**: digite `:` seguido de texto e um popup lista todos os emotes dos quatro providers, filtrando por prefixo ou substring. Navegação cíclica com `↑` / `↓` e confirmação com `Enter` ou `Tab`.
-- **Menu de emotes**: botão integrado à barra de input do chat (no lugar do botão nativo). Painel com abas por provider, busca em tempo real e grade compacta.
-- **Recentes**: os últimos emotes usados ficam salvos e disponíveis na aba "Recentes".
-- **Tooltip**: preview do emote com nome, provider e escopo ao passar o mouse.
-- **Prioridade correta**: emotes do canal vencem globais; dentro do mesmo escopo, a ordem é BTTV > FFZ > 7TV > Cinefy.
-- **Cache agressivo**: resultados de API ficam em `storage.local` e `storage.session`, sobrevivendo à morte do service worker MV3.
+-   **Emotes no chat:** reconhece automaticamente códigos do BTTV, FFZ,
+    7TV e Cinefy nas mensagens.
+-   **Autocomplete:** digite `:` seguido de texto para abrir uma lista
+    de emotes dos quatro providers. A busca filtra por prefixo ou
+    substring; navegue com `↑` e `↓` e confirme com `Enter` ou `Tab`.
+-   **Menu de emotes:** botão integrado à barra de entrada do chat, com
+    abas por provider, busca em tempo real e grade compacta.
+-   **Emotes recentes:** mantém os últimos emotes usados na aba
+    **Recentes**.
+-   **Tooltip:** exibe uma prévia do emote, o nome, o provider e o
+    escopo ao passar o mouse.
+-   **Prioridade de emotes:** emotes do canal têm prioridade sobre os
+    globais. Dentro do mesmo escopo, a ordem é **BTTV → FFZ → 7TV →
+    Cinefy**.
+-   **Cache:** armazena resultados das APIs em `chrome.storage.local` e
+    `chrome.storage.session`, ajudando a preservar os dados entre
+    reinicializações do service worker do Manifest V3.
 
-## Instalação (modo desenvolvedor)
+## Instalação
 
-1. Baixe ou clone este repositório.
-2. Abra `chrome://extensions` no Chrome (ou Brave, Edge, Opera).
-3. Ative o **Modo do desenvolvedor** (canto superior direito).
-4. Clique em **Carregar sem compactação** e selecione a pasta do projeto.
-5. Abra o chat de qualquer canal em [cinefy.gg](https://cinefy.gg).
+A Cinemotes ainda é instalada manualmente, em modo de desenvolvedor.
+
+1.  Baixe o ZIP do repositório e extraia os arquivos, ou clone o
+    repositório.
+2.  Abra `chrome://extensions` no Chrome. Navegadores baseados em
+    Chromium, como Brave, Edge e Opera, também podem funcionar.
+3.  Ative o **Modo do desenvolvedor**.
+4.  Clique em **Carregar sem compactação**.
+5.  Selecione a pasta do projeto que contém o arquivo `manifest.json`.
+6.  Abra o chat de um canal em [cinefy.gg](https://cinefy.gg).
+
+> **Observação:** como a extensão depende da estrutura interna do chat
+> da Cinefy, mudanças no site podem afetar seu funcionamento.
 
 ## Como funciona
 
-A extensão é dividida em três camadas:
+A extensão é organizada em três camadas:
 
-**Service worker (background.js)**  
-Faz as chamadas às APIs do BTTV, FFZ e 7TV. Resolve `username → channelId` da Twitch via decapi.me com backup em api.ivr.fi. Mantém os resultados em cache (memória + `chrome.storage.local` + `chrome.storage.session`).
+### 1. Service worker --- `background.js`
 
-**Main world (main-world.js)**  
-Roda no contexto da própria página do Cinefy para interceptar `fetch` e `XMLHttpRequest`. Não modifica nada — apenas observa as respostas que o React do Cinefy já busca, e retransmite via `postMessage`. É assim que a extensão descobre os emotes nativos da plataforma sem precisar de token de autenticação.
+Faz as chamadas às APIs do BTTV, FFZ e 7TV. Resolve a relação
+`username → channelId` da Twitch usando `decapi.me`, com `api.ivr.fi`
+como alternativa. Mantém os resultados em cache na memória, em
+`chrome.storage.local` e em `chrome.storage.session`.
 
-**Content scripts (content/*.js)**  
-Onde o trabalho pesado acontece. Trie de códigos de emote, parser que substitui text nodes por `<img>`, fila de parse com deadline, autocomplete, menu, tooltip, observer do chat virtualizado.
+### 2. Main world --- `main-world.js`
+
+Executa no contexto da página da Cinefy para observar `fetch` e
+`XMLHttpRequest`. Não altera as respostas: observa as requisições que o
+React da Cinefy já faz e retransmite os dados por `postMessage`. Assim,
+a extensão consegue identificar os emotes nativos sem precisar de um
+token de autenticação.
+
+### 3. Content scripts --- `content/*.js`
+
+É onde ocorre a maior parte do processamento: trie de códigos de emote,
+parser que substitui nós de texto por imagens, fila de parsing com
+deadline, autocomplete, menu, tooltip e observer do chat virtualizado.
 
 ## Estrutura do projeto
+
+``` text
 .
 ├── manifest.json
-├── main-world.js # patch de fetch/XHR no MAIN world
-├── background.js # service worker: APIs + caches
-├── styles.css # estilos do tooltip, autocomplete e menu
+├── main-world.js             # Observação de fetch/XHR no MAIN world
+├── background.js             # Service worker: APIs e caches
+├── styles.css                # Tooltip, autocomplete e menu
 ├── src/
-│ ├── icon16.png
-│ ├── icon48.png
-│ └── icon128.png
+│   ├── icon16.png
+│   ├── icon48.png
+│   └── icon128.png
 └── content/
-├── 00-core.js # constantes e utilitários
-├── 01-state.js # maps, trie, versão
-├── 02-tooltip.js # tooltip de hover
-├── 03-emotes-map.js # merge por prioridade
-├── 04-parser.js # substitui texto por emotes
-├── 05-bridge.js # port com o service worker
-├── 06-cinefy.js # bridge do Cinefy (main → content)
-├── 07-autocomplete.js # popup de autocomplete
-├── 08-menu.js # botão + painel de emotes
-├── 09-recents.js # persistência de recentes
-├── 10-chat-observer.js # observa o chat virtualizado
-└── 11-init.js # bootstrap e troca de canal
+    ├── 00-core.js            # Constantes e utilitários
+    ├── 01-state.js           # Maps, trie e versão
+    ├── 02-tooltip.js         # Tooltip de hover
+    ├── 03-emotes-map.js      # Merge por prioridade
+    ├── 04-parser.js          # Substituição de texto por emotes
+    ├── 05-bridge.js          # Comunicação com o service worker
+    ├── 06-cinefy.js          # Bridge Cinefy (main → content)
+    ├── 07-autocomplete.js    # Popup de autocomplete
+    ├── 08-menu.js            # Botão e painel de emotes
+    ├── 09-recents.js         # Persistência de recentes
+    ├── 10-chat-observer.js   # Observação do chat virtualizado
+    └── 11-init.js            # Inicialização e troca de canal
+```
 
-text
-
-A ordem dos content scripts no `manifest.json` importa — cada arquivo depende dos anteriores.
+> **Importante:** a ordem dos content scripts definida no
+> `manifest.json` importa, pois cada arquivo pode depender dos
+> anteriores.
 
 ## Limitações conhecidas
 
-- **Efeitos do BTTV** (`c!`, `w!`, `v!`, overlays `RainTime` e `cvHazmat`) não estão implementados. Por enquanto são tratados como texto puro. Planejados para uma versão futura.
-- **Tooltip em emotes nativos do Cinefy**: o handler existe, mas o comportamento é inconsistente em alguns canais. Não é bloqueante e não afeta o uso diário.
-- **Favoritos**: planejado, ainda não implementado.
-- **Histórico de mensagens com `↑`**: planejado, ainda não implementado.
+-   **Efeitos do BTTV:** `c!`, `w!`, `v!` e os overlays `RainTime` e
+    `cvHazmat` ainda não são implementados e aparecem como texto puro.
+-   **Tooltip em emotes nativos da Cinefy:** o comportamento é
+    inconsistente em alguns canais. Não impede o uso normal da extensão.
+-   **Favoritos:** ainda não implementados.
+-   **Histórico de mensagens com `↑`:** ainda não implementado.
 
 ## Roadmap
 
-- [ ] Implementar efeitos do BTTV (`c!`, `w!`, `v!`, overlays).
-- [ ] Tooltip consistente em emotes nativos.
-- [ ] Favoritos persistidos.
-- [ ] Navegação por mensagens enviadas com `↑`.
-- [ ] Página de opções (desabilitar providers, ajustar altura de emote, etc).
+-   [ ] Implementar os efeitos do BTTV (`c!`, `w!`, `v!` e overlays).
+-   [ ] Tornar consistente o tooltip dos emotes nativos da Cinefy.
+-   [ ] Adicionar favoritos persistidos.
+-   [ ] Permitir navegar pelas mensagens enviadas com `↑`.
+-   [ ] Criar uma página de opções para desabilitar providers, ajustar a
+    altura dos emotes e configurar outras preferências.
 
 ## Privacidade
 
-A extensão **não coleta dados de usuário**. Não há analytics, não há telemetria, não há servidor próprio. Todas as chamadas de rede vão direto para as APIs públicas dos providers (BTTV, FFZ, 7TV, decapi.me, api.ivr.fi, api.cinefy.gg). O único dado armazenado localmente é a lista de emotes recentes, em `chrome.storage.local`.
+A extensão **não coleta dados do usuário**. Não utiliza analytics,
+telemetria ou servidor próprio. As chamadas de rede são feitas
+diretamente às APIs públicas dos providers e serviços utilizados: BTTV,
+FFZ, 7TV, `decapi.me`, `api.ivr.fi` e `api.cinefy.gg`.
+
+O único dado de uso armazenado localmente descrito pela extensão é a
+lista de emotes recentes, salva em `chrome.storage.local`.
 
 ## Contribuições
 
-Pull requests são bem-vindos. Antes de abrir um PR grande, abra uma issue para alinhar a abordagem — a extensão depende de detalhes do DOM da Cinefy, e mudanças que parecem inofensivas podem quebrar em canais específicos.
+Pull requests são bem-vindos. Para mudanças grandes, abra uma issue
+antes de iniciar o trabalho, para alinhar a abordagem. A extensão
+depende de detalhes do DOM da Cinefy, e alterações aparentemente
+pequenas podem causar problemas em canais específicos.
 
 ## Licença
 
-MIT.
+Distribuído sob a licença MIT. Consulte o arquivo `LICENSE` do
+repositório para ver os termos completos.
