@@ -22,7 +22,7 @@ const SESSION_PREFIX_CH   = 'ch:';                // legado — só para limpeza
 const SESSION_CLEANUP_INTERVAL = 10 * 60 * 1000;  // 10min
 const SESSION_WRITE_FLUSH_MS   = 150;             // batching de escritas
 
-const GLOBAL_PROVIDERS      = ['bttv', 'ffz', '7tv'];
+const GLOBAL_PROVIDERS      = ['bttv', 'ffz', '7tv', 'cinemotes'];
 const GLOBAL_STORAGE_PREFIX = 'globalCache:';
 const LEGACY_STORAGE_KEY    = 'globalCache';       // formato v1.1.0, limpamos
 
@@ -398,10 +398,51 @@ function build7TV(list, scope, channelName) {
 
 // Retorna { staging, sig } — a assinatura é computada na mesma passada,
 // evitando uma segunda varredura O(N) em cada refresh.
+// Local Cinemotes catalog used by the prototype.
+function parseCinemotesCsv(text) {
+  const rows = []; let row = [], field = '', quoted = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (c === '"') {
+      if (quoted && text[i + 1] === '"') { field += '"'; i++; }
+      else quoted = !quoted;
+    } else if (c === ',' && !quoted) { row.push(field); field = ''; }
+    else if ((c === '\n' || c === '\r') && !quoted) {
+      if (c === '\r' && text[i + 1] === '\n') i++;
+      row.push(field); rows.push(row); row = []; field = '';
+    } else field += c;
+  }
+  if (quoted) throw new Error('Cinemotes CSV: unterminated quoted field');
+  if (field || row.length) { row.push(field); rows.push(row); }
+  const header = (rows.shift() || []).map(c => c.replace(/^\uFEFF/, '').trim());
+  const nameIndex = header.indexOf('emote_name'), urlIndex = header.indexOf('url');
+  if (nameIndex < 0 || urlIndex < 0) throw new Error('Cinemotes CSV: missing emote_name/url');
+  const out = []; const seen = new Set();
+  for (const values of rows) {
+    const code = values[nameIndex]?.trim();
+    if (!code || !/^[a-zA-Z0-9_]{1,32}$/.test(code) || seen.has(code)) continue;
+    try {
+      const url = new URL(values[urlIndex]?.trim());
+      if (url.protocol !== 'https:' || url.username || url.password) continue;
+      seen.add(code);
+      out.push({ code, data: { url: url.href, previewUrl: url.href,
+        provider: 'Cinemotes', scope: 'Global', author: 'Cinemotes' } });
+    } catch {}
+  }
+  return out;
+}
+
 async function buildProviderGlobal(provider) {
   let staging = [];
 
-  if (provider === 'bttv') {
+  if (provider === 'cinemotes') {
+    try {
+      const r = await fetchWithTimeout(chrome.runtime.getURL('assets/emotesCE.csv'));
+      if (r.ok) staging = parseCinemotesCsv(await r.text());
+    } catch (e) {
+      console.warn('[Cinemotes] local catalog failed:', e?.message || e);
+    }
+  } else if (provider === 'bttv') {
     try {
       const r = await fetchWithTimeout('https://api.betterttv.net/3/cached/emotes/global');
       if (r.ok) staging = buildBTTV(await r.json(), 'Global', null);
@@ -428,6 +469,7 @@ async function buildProviderGlobal(provider) {
 }
 
 async function fetchProviderGlobal(provider) {
+  if (provider === 'cinemotes') return (await buildProviderGlobal(provider)).staging;
   const now = Date.now();
 
   const cached = memGlobalCache.get(provider);

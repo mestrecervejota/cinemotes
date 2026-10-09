@@ -344,3 +344,9 @@ button[aria-label="Emotes"][aria-haspopup="dialog"]:not([data-cinemotes-menu-btn
   padding: 0 !important;
   overflow: hidden !important;
 }
+/* Monochrome category icon, matching the chat button. */
+.cinemotes-menu-tab svg.cinemotes-category-icon {
+  width: 20px;
+  height: 20px;
+  display: block;
+}

@@ -11,7 +11,7 @@ const RESERVED_CHANNELS = new Set([
   'following', 'subscriptions', 'embed', 'user'
 ]);
 
-const PROVIDER_PRIORITY = { 'BTTV': 3, 'FFZ': 2, '7TV': 1, 'Cinefy': 0 };
+const PROVIDER_PRIORITY = { 'BTTV': 3, 'FFZ': 2, '7TV': 1, 'Cinefy': 0, 'Cinemotes': 4 };
 
 const CHAT_POLL_INTERVAL     = 800;
 const URL_POLL_INTERVAL      = 5000;
