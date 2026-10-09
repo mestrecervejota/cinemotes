@@ -1,7 +1,7 @@
 # Cinemotes
 
-Extensão para Chrome que integra emotes do **BetterTTV (BTTV)**,
-**FrankerFaceZ (FFZ)** e \*\*7TV ao chat da [Cinefy](https://cinefy.gg),
+Extensão para Chrome e Firefox que integra emotes do **BetterTTV (BTTV)**,
+**FrankerFaceZ (FFZ)** e **7TV** ao chat da [Cinefy](https://cinefy.gg),
 junto dos emotes nativos da plataforma.
 
 ## Índice
@@ -50,19 +50,50 @@ content scripts.
 
 ## Instalação
 
-A Cinemotes ainda é instalada manualmente, em modo de desenvolvedor.
+Baixe o ZIP do repositório e extraia os arquivos, ou clone o repositório.
+Não é necessário instalar Node.js, dependências ou executar build: cada
+pasta contém uma extensão completa.
 
-1.  Baixe o ZIP do repositório e extraia os arquivos, ou clone o
-    repositório.
-2.  Abra `chrome://extensions` no Chrome. Navegadores baseados em
-    Chromium, como Brave, Edge e Opera, também podem funcionar.
-3.  Ative o **Modo do desenvolvedor**.
-4.  Clique em **Carregar sem compactação**.
-5.  Selecione a pasta do projeto que contém o arquivo `manifest.json`.
-6.  Abra o chat de um canal em [cinefy.gg](https://cinefy.gg).
+### Chrome
 
-> **Observação:** como a extensão depende da estrutura interna do chat
-> da Cinefy, mudanças no site podem afetar seu funcionamento.
+1. Abra `chrome://extensions`.
+2. Ative o **Modo do desenvolvedor**.
+3. Clique em **Carregar sem compactação**.
+4. Selecione a pasta **`chrome/`**, que contém o manifest do Chrome.
+5. Abra uma live em [cinefy.gg](https://cinefy.gg) e deixe o chat visível.
+
+Se a extensão antiga estava carregada pela raiz do projeto, remova essa
+entrada antes de carregar a pasta `chrome/`.
+
+### Firefox
+
+Requer **Firefox para desktop 140 ou superior**.
+
+1. Abra `about:debugging#/runtime/this-firefox` na barra de endereços.
+2. Clique em **Carregar extensão temporária…**. Dependendo do idioma,
+   o botão pode aparecer como **Load Temporary Add-on…**.
+3. Entre na pasta **`firefox/`** e selecione **`manifest.json`**.
+4. Abra uma live em [cinefy.gg](https://cinefy.gg) e deixe o chat visível.
+5. Caso o Firefox solicite permissões de acesso ao site, conceda-as.
+6. Para conferir o autocomplete, digite `:kap` no campo de mensagem.
+
+**A instalação é temporária:** a extensão é removida ao fechar o Firefox.
+Na próxima sessão, repita os passos para carregá-la. A instalação
+permanente no Firefox comum exige um pacote assinado pela Mozilla;
+as pastas deste repositório são destinadas à instalação de desenvolvimento.
+
+### Atualizar após alterações
+
+- **Chrome:** em `chrome://extensions`, clique no botão de recarregar da
+  Cinemotes e depois atualize a página da live.
+- **Firefox:** em `about:debugging#/runtime/this-firefox`, clique em
+  **Recarregar** na Cinemotes e depois atualize a página da live.
+
+Edite os arquivos da pasta do navegador correspondente. Por enquanto,
+melhorias comuns precisam ser aplicadas às duas versões manualmente.
+
+> A extensão depende da estrutura interna do chat do Cinefy. Mudanças
+> no site podem afetar seu funcionamento.
 
 ## Como funciona
 
