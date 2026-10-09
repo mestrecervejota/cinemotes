@@ -126,7 +126,6 @@ deadline, autocomplete, menu, tooltip e observer do chat virtualizado.
   styles.css, assets/ e content/.
 - **firefox/**: manifest Firefox, background.js (scripts de background),
   main-world.js, styles.css, assets/ e content/.
-- **legacy/**: refer?ncia antiga, n?o utilizada e mantida intacta.
 - **README.md**: instru??es das duas vers?es.
 
 C?digo e imagens foram duplicados intencionalmente para permitir instala??o
