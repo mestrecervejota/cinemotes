@@ -416,6 +416,7 @@ function parseCinemotesCsv(text) {
   if (field || row.length) { row.push(field); rows.push(row); }
   const header = (rows.shift() || []).map(c => c.replace(/^\uFEFF/, '').trim());
   const nameIndex = header.indexOf('emote_name'), urlIndex = header.indexOf('url');
+  const authorIndex = header.indexOf('author'), channelIndex = header.indexOf('channel');
   if (nameIndex < 0 || urlIndex < 0) throw new Error('Cinemotes CSV: missing emote_name/url');
   const out = []; const seen = new Set();
   for (const values of rows) {
@@ -426,7 +427,9 @@ function parseCinemotesCsv(text) {
       if (url.protocol !== 'https:' || url.username || url.password) continue;
       seen.add(code);
       out.push({ code, data: { url: url.href, previewUrl: url.href,
-        provider: 'Cinemotes', scope: 'Global', author: 'Cinemotes' } });
+        provider: 'Cinemotes', scope: 'Global',
+        author: values[authorIndex]?.trim() || '',
+        channel: values[channelIndex]?.trim() || 'GlobalCE' } });
     } catch {}
   }
   return out;
