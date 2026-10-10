@@ -16,7 +16,8 @@
     "https://api.frankerfacez.com/*",
     "https://7tv.io/*",
     "https://decapi.me/*",
-    "https://api.ivr.fi/*"
+    "https://api.ivr.fi/*",
+    "https://ragnardragus.github.io/*"
   ],
   "background": {
     "scripts": [

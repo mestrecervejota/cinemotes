@@ -22,6 +22,9 @@ const SESSION_PREFIX_CH   = 'ch:';                // legado — só para limpeza
 const SESSION_CLEANUP_INTERVAL = 10 * 60 * 1000;  // 10min
 const SESSION_WRITE_FLUSH_MS   = 150;             // batching de escritas
 
+const CINEMOTES_API_URL = 'https://ragnardragus.github.io/cineemote-api/cinemotesCE.json';
+const CINEMOTES_CACHE_TTL = 5 * 60 * 1000; // Refresh on the next catalog request after 5 minutes.
+
 const GLOBAL_PROVIDERS      = ['bttv', 'ffz', '7tv', 'cinemotes'];
 const GLOBAL_STORAGE_PREFIX = 'globalCache:';
 const LEGACY_STORAGE_KEY    = 'globalCache';       // formato v1.1.0, limpamos
@@ -120,7 +123,7 @@ function maybeCleanSession() {
 const normalizeUrl = url =>
   !url ? '' : url.startsWith('//') ? `https:${url}` : url;
 
-async function fetchWithTimeout(url, { signal, timeout = FETCH_TIMEOUT } = {}) {
+async function fetchWithTimeout(url, { signal, timeout = FETCH_TIMEOUT, cache = 'default' } = {}) {
   const ctrl = new AbortController();
   const onAbort = () => ctrl.abort();
   if (signal) {
@@ -129,7 +132,7 @@ async function fetchWithTimeout(url, { signal, timeout = FETCH_TIMEOUT } = {}) {
   }
   const timer = setTimeout(() => ctrl.abort(), timeout);
   try {
-    return await fetch(url, { signal: ctrl.signal, credentials: 'omit' });
+    return await fetch(url, { signal: ctrl.signal, credentials: 'omit', cache });
   } finally {
     clearTimeout(timer);
     signal?.removeEventListener('abort', onAbort);
@@ -398,40 +401,26 @@ function build7TV(list, scope, channelName) {
 
 // Retorna { staging, sig } — a assinatura é computada na mesma passada,
 // evitando uma segunda varredura O(N) em cada refresh.
-// Local Cinemotes catalog used by the prototype.
-function parseCinemotesCsv(text) {
-  const rows = []; let row = [], field = '', quoted = false;
-  for (let i = 0; i < text.length; i++) {
-    const c = text[i];
-    if (c === '"') {
-      if (quoted && text[i + 1] === '"') { field += '"'; i++; }
-      else quoted = !quoted;
-    } else if (c === ',' && !quoted) { row.push(field); field = ''; }
-    else if ((c === '\n' || c === '\r') && !quoted) {
-      if (c === '\r' && text[i + 1] === '\n') i++;
-      row.push(field); rows.push(row); row = []; field = '';
-    } else field += c;
-  }
-  if (quoted) throw new Error('Cinemotes CSV: unterminated quoted field');
-  if (field || row.length) { row.push(field); rows.push(row); }
-  const header = (rows.shift() || []).map(c => c.replace(/^\uFEFF/, '').trim());
-  const nameIndex = header.indexOf('emote_name'), urlIndex = header.indexOf('url');
-  const authorIndex = header.indexOf('author'), channelIndex = header.indexOf('channel');
-  if (nameIndex < 0 || urlIndex < 0) throw new Error('Cinemotes CSV: missing emote_name/url');
-  const out = []; const seen = new Set();
-  for (const values of rows) {
-    const code = values[nameIndex]?.trim();
-    if (!code || !/^[a-zA-Z0-9_]{1,32}$/.test(code) || seen.has(code)) continue;
+// Remote catalog keeps the same fields as the original CSV.
+function buildCinemotes(list) {
+  if (!Array.isArray(list)) throw new Error('Cinemotes API: expected an array');
+  const out = [], seen = new Set();
+  for (const emote of list) {
+    const code = typeof emote?.emote_name === 'string' ? emote.emote_name.trim() : '';
+    if (!/^[a-zA-Z0-9_]{1,32}$/.test(code) || seen.has(code)) continue;
     try {
-      const url = new URL(values[urlIndex]?.trim());
+      if (typeof emote.url !== 'string') continue;
+      const url = new URL(emote.url.trim());
       if (url.protocol !== 'https:' || url.username || url.password) continue;
       seen.add(code);
-      out.push({ code, data: { url: url.href, previewUrl: url.href,
-        provider: 'Cinemotes', scope: 'Global',
-        author: values[authorIndex]?.trim() || '',
-        channel: values[channelIndex]?.trim() || 'GlobalCE' } });
+      out.push({ code, data: {
+        url: url.href, previewUrl: url.href, provider: 'Cinemotes', scope: 'Global',
+        author: typeof emote.author === 'string' ? emote.author.trim() : '',
+        channel: typeof emote.channel === 'string' && emote.channel.trim() ? emote.channel.trim() : 'GlobalCE'
+      } });
     } catch {}
   }
+  if (list.length && !out.length) throw new Error('Cinemotes API: no valid emotes');
   return out;
 }
 
@@ -439,12 +428,9 @@ async function buildProviderGlobal(provider) {
   let staging = [];
 
   if (provider === 'cinemotes') {
-    try {
-      const r = await fetchWithTimeout(chrome.runtime.getURL('assets/emotesCE.csv'));
-      if (r.ok) staging = parseCinemotesCsv(await r.text());
-    } catch (e) {
-      console.warn('[Cinemotes] local catalog failed:', e?.message || e);
-    }
+    const r = await fetchWithTimeout(CINEMOTES_API_URL, { cache: 'no-cache' });
+    if (!r.ok) throw new Error('Cinemotes API: HTTP ' + r.status);
+    staging = buildCinemotes(await r.json());
   } else if (provider === 'bttv') {
     try {
       const r = await fetchWithTimeout('https://api.betterttv.net/3/cached/emotes/global');
@@ -471,8 +457,52 @@ async function buildProviderGlobal(provider) {
   return { staging, sig: stagingSignature(staging) };
 }
 
+// Keep the last valid response, including an intentionally empty catalog.
+async function fetchCinemotesGlobal() {
+  const provider = 'cinemotes';
+  const existing = globalInflight.get(provider);
+  if (existing) return existing;
+  const promise = (async () => {
+    let cached = memGlobalCache.get(provider);
+    if (!cached) {
+      try {
+        const key = GLOBAL_STORAGE_PREFIX + provider;
+        const stored = await chrome.storage.local.get(key);
+        const entry = stored?.[key];
+        if (entry && typeof entry.ts === 'number' && Array.isArray(entry.staging)) cached = entry;
+      } catch (error) {
+        console.debug('[Cinemotes] catalog cache read failed:', error.message);
+      }
+    }
+    if (cached) memGlobalCache.set(provider, cached);
+    const now = Date.now();
+    if (cached && now - cached.ts < CINEMOTES_CACHE_TTL) return cached.staging;
+    const failedAt = globalFailTs.get(provider);
+    if (failedAt && now - failedAt < GLOBAL_FAIL_TTL) return cached?.staging || [];
+    try {
+      const { staging, sig } = await buildProviderGlobal(provider);
+      const entry = { ts: Date.now(), staging, sig };
+      memGlobalCache.set(provider, entry);
+      globalFailTs.delete(provider);
+      try {
+        await chrome.storage.local.set({ [GLOBAL_STORAGE_PREFIX + provider]: entry });
+      } catch (error) {
+        console.warn('[Cinemotes] catalog cache write failed:', error.message);
+      }
+      return staging;
+    } catch (error) {
+      globalFailTs.set(provider, Date.now());
+      console.warn('[Cinemotes] remote catalog unavailable; using last valid catalog:', error.message);
+      return cached?.staging || [];
+    }
+  })();
+  globalInflight.set(provider, promise);
+  try { return await promise; }
+  finally { globalInflight.delete(provider); }
+}
+
 async function fetchProviderGlobal(provider) {
-  if (provider === 'cinemotes') return (await buildProviderGlobal(provider)).staging;
+  if (provider === 'cinemotes') return fetchCinemotesGlobal();
   const now = Date.now();
 
   const cached = memGlobalCache.get(provider);
