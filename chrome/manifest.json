@@ -16,7 +16,8 @@
     "https://api.frankerfacez.com/*",
     "https://7tv.io/*",
     "https://decapi.me/*",
-    "https://api.ivr.fi/*"
+    "https://api.ivr.fi/*",
+    "https://cinemotes-ledger-api.ragnardragus.workers.dev/*"
   ],
   "background": {
     "service_worker": "background.js"
