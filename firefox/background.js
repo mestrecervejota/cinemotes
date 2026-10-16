@@ -136,6 +136,35 @@ async function fetchWithTimeout(url, { signal, timeout = FETCH_TIMEOUT } = {}) {
   }
 }
 
+// Give 7TV time to deliver headers AND the JSON body; retry transient failures once.
+async function fetch7TVJson(url, { global = false } = {}) {
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 5000);
+    let retry = true;
+    try {
+      const response = await fetch(url, { signal: controller.signal, credentials: 'omit' });
+      if (!response.ok) {
+        retry = response.status >= 500 || response.status === 429;
+        // Respect long rate-limit cooldowns instead of immediately retrying.
+        const retryAfter = response.headers?.get('retry-after');
+        if (retryAfter && (Number(retryAfter) > 1 || Date.parse(retryAfter) > Date.now() + 1000)) retry = false;
+        throw new Error('7TV HTTP ' + response.status);
+      }
+      const payload = await response.json();
+      if (global && (!Array.isArray(payload?.emotes) || !payload.emotes.length)) {
+        throw new Error('7TV global: empty or invalid catalog');
+      }
+      return payload;
+    } catch (error) {
+      if (!retry || attempt === 1) throw error;
+    } finally {
+      clearTimeout(timer);
+    }
+    await new Promise(resolve => setTimeout(resolve, 500));
+  }
+}
+
 function pruneMap(map, ttl, maxSize) {
   const now = Date.now();
   for (const [key, entry] of map) {
@@ -404,23 +433,25 @@ async function buildProviderGlobal(provider) {
   if (provider === 'bttv') {
     try {
       const r = await fetchWithTimeout('https://api.betterttv.net/3/cached/emotes/global');
-      if (r.ok) staging = buildBTTV(await r.json(), 'Global', null);
+      if (!r.ok) throw new Error('BTTV global HTTP ' + r.status);
+      staging = buildBTTV(await r.json(), 'Global', null);
     } catch (e) {
-      console.debug('[Cinemotes/SW] BTTV global falhou:', e?.message || e);
+      console.warn('[Cinemotes/SW] BTTV global falhou:', e?.message || e);
     }
   } else if (provider === 'ffz') {
     try {
       const r = await fetchWithTimeout('https://api.frankerfacez.com/v1/set/global');
-      if (r.ok) staging = buildFFZ((await r.json()).sets, 'Global', null);
+      if (!r.ok) throw new Error('FFZ global HTTP ' + r.status);
+      staging = buildFFZ((await r.json()).sets, 'Global', null);
     } catch (e) {
-      console.debug('[Cinemotes/SW] FFZ global falhou:', e?.message || e);
+      console.warn('[Cinemotes/SW] FFZ global falhou:', e?.message || e);
     }
   } else if (provider === '7tv') {
     try {
-      const r = await fetchWithTimeout('https://7tv.io/v3/emote-sets/global');
-      if (r.ok) staging = build7TV((await r.json()).emotes, 'Global', null);
+      const data = await fetch7TVJson('https://7tv.io/v3/emote-sets/global', { global: true });
+      staging = build7TV(data.emotes, 'Global', null);
     } catch (e) {
-      console.debug('[Cinemotes/SW] 7TV global falhou:', e?.message || e);
+      console.warn('[Cinemotes/SW] 7TV global falhou:', e?.message || e);
     }
   }
 
@@ -433,12 +464,12 @@ async function fetchProviderGlobal(provider) {
   const cached = memGlobalCache.get(provider);
   if (cached) {
     if (now - cached.ts < GLOBAL_CACHE_TTL) return cached.staging;
-    memGlobalCache.delete(provider);
+    // Retain expired data as a fallback while refreshing.
   }
 
   const failTs = globalFailTs.get(provider) || 0;
   if (failTs) {
-    if (now - failTs < GLOBAL_FAIL_TTL) return [];
+    if (now - failTs < GLOBAL_FAIL_TTL && cached) return cached.staging;
     globalFailTs.delete(provider);
   }
 
@@ -486,6 +517,11 @@ async function fetchProviderGlobal(provider) {
       }
     } else {
       globalFailTs.set(provider, Date.now());
+      if (Array.isArray(storedEntry?.staging) && storedEntry.staging.length) {
+        memGlobalCache.set(provider, storedEntry);
+        return storedEntry.staging;
+      }
+      if (Array.isArray(cached?.staging)) return cached.staging;
     }
     return staging;
   })().catch(e => {
@@ -550,9 +586,8 @@ async function fetchChannelStaging(channelId, channelName) {
       })(),
       (async () => {
         try {
-          const r = await fetchWithTimeout(`https://7tv.io/v3/users/twitch/${channelId}`);
-          if (!r.ok) return null;
-          return build7TV((await r.json()).emote_set?.emotes, 'Canal', channelName);
+          const data = await fetch7TVJson(`https://7tv.io/v3/users/twitch/${channelId}`);
+          return build7TV(data.emote_set?.emotes, 'Canal', channelName);
         } catch (e) {
           console.debug('[Cinemotes/SW] 7TV canal falhou:', e?.message || e);
           return null;

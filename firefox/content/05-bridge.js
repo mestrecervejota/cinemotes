@@ -63,7 +63,7 @@ function fetchEmotesOnce(channel, onUpdate) {
     };
 
     const timer = setTimeout(
-      () => fail(new PortError('background timeout', { retryable: false })),
+      () => fail(new PortError('background timeout', { retryable: true })),
       SW_MESSAGE_TIMEOUT
     );
 
@@ -96,13 +96,13 @@ function fetchEmotesOnce(channel, onUpdate) {
 
     port.onDisconnect.addListener(() => {
       if (settled) return;
-      if (gotChannel || globalsDone || globalByProvider.size > 0) {
-        finish();
-      } else {
+      // A partial result is not a completed catalog; let the existing retry recover it.
+      if (gotChannel && globalsDone) finish();
+      else {
         const err = chrome.runtime.lastError;
-        fail(new PortError(err?.message || 'port disconnected', { retryable: true }));
+        fail(new PortError(err?.message || 'port disconnected before catalogs completed', { retryable: true }));
       }
-    });
+    });;
 
     try {
       port.postMessage({ type: 'FETCH_EMOTES', channel });

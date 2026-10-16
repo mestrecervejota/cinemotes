@@ -17,7 +17,7 @@ const MENU_SEARCH_CLS     = 'cinemotes-menu-search';
 const MENU_TABS_BAR_CLS   = 'cinemotes-menu-tabs-bar';
 const MENU_HEADER_CLS     = 'cinemotes-menu-header';
 
-const MENU_WIDTH          = 420;
+const MENU_WIDTH          = 360;
 const MENU_HEIGHT         = 460;
 const MENU_CHANNEL_LIMIT  = 30;   // primeiros N no tab Canal
 const MENU_GLOBAL_LIMIT   = 60;   // primeiros N por provider
@@ -238,22 +238,20 @@ function menuEnsurePanel() {
 function menuPosition() {
   if (!menuPanel || !menuButton) return;
   const rect = menuButton.getBoundingClientRect();
-
-  // Alinha a borda direita do painel com a borda direita do botão.
-  let left = rect.right - MENU_WIDTH;
-  if (left < 8) left = 8;
-  if (left + MENU_WIDTH > window.innerWidth - 8) {
-    left = Math.max(8, window.innerWidth - MENU_WIDTH - 8);
-  }
-
-  // Abre acima do botão (a barra de input fica no rodapé).
-  let top = rect.top - MENU_HEIGHT - 8;
-  if (top < 8) top = 8;
-
-  menuPanel.style.left   = `${left}px`;
-  menuPanel.style.top    = `${top}px`;
-  menuPanel.style.width  = `${MENU_WIDTH}px`;
-  menuPanel.style.height = `${MENU_HEIGHT}px`;
+  const chat = menuButton.closest('[class*="styles__Root-sc-dd98588e-"]');
+  const chatRect = chat?.getBoundingClientRect();
+  const inputRect = acFindChatInput()?.getBoundingClientRect();
+  const width = Math.max(0, Math.min(MENU_WIDTH, (chatRect?.width || MENU_WIDTH + 16) - 16, window.innerWidth - 16));
+  const right = chatRect ? chatRect.right - 8 : rect.right;
+  const left = Math.max(8, Math.min(right - width, window.innerWidth - width - 8));
+  // Keep a gap above the composer and fit short windows as well.
+  const anchorTop = Math.min(rect.top, inputRect?.top ?? rect.top);
+  const height = Math.max(0, Math.min(MENU_HEIGHT, anchorTop - 16, window.innerHeight - 16));
+  const top = Math.max(8, anchorTop - height - 8);
+  menuPanel.style.left = left + 'px';
+  menuPanel.style.top = top + 'px';
+  menuPanel.style.width = width + 'px';
+  menuPanel.style.height = height + 'px';
 }
 
 // ─── Tabs ─────────────────────────────────────────────────────────────────────
@@ -294,15 +292,24 @@ function menuCollectCinefy() {
   return out.slice(0, MENU_BROWSE_LIMIT);
 }
 
-function menuCollectGlobalByProvider(provider) {
-  const out = [];
-  for (const [code, data] of emotes) {
-    if (data.scope === 'Canal') continue;
-    if (data.provider !== provider) continue;
-    out.push({ code, data });
+// Read original catalogs so a name shared with another provider remains visible in its tab.
+function menuCollectByProvider(provider) {
+  const entries = new Map();
+  for (const catalogs of [globalEmotesByProvider, channelEmotesByProvider]) {
+    for (const list of catalogs.values()) {
+      for (const { code, data } of list) {
+        if (data.provider !== provider) continue;
+        const previous = entries.get(code);
+        if (!previous || emotePriority(data.provider, data.scope) > emotePriority(previous.data.provider, previous.data.scope)) {
+          entries.set(code, { code, data });
+        }
+      }
+    }
   }
-  out.sort((a, b) => a.code.localeCompare(b.code));
-  return out.slice(0, MENU_GLOBAL_LIMIT);
+  return [...entries.values()].sort((a, b) => {
+    const scope = Number(b.data.scope === 'Canal') - Number(a.data.scope === 'Canal');
+    return scope || a.code.localeCompare(b.code);
+  });
 }
 
 function menuCollectAll(query) {
@@ -318,7 +325,7 @@ function menuCollectAll(query) {
     if (pa !== pb) return pb - pa;
     return a.code.localeCompare(b.code);
   });
-  return out.slice(0, MENU_BROWSE_LIMIT);
+  return query ? out.slice(0, MENU_BROWSE_LIMIT) : out;
 }
 
 function menuCollectRecent() {
@@ -349,9 +356,9 @@ function menuCollectForActiveTab() {
   switch (menuActiveTab) {
     case 'recent':  return menuCollectRecent();
     case 'cinefy':  return menuCollectCinefy();
-    case 'bttv':    return menuCollectGlobalByProvider('BTTV');
-    case 'ffz':     return menuCollectGlobalByProvider('FFZ');
-    case '7tv':     return menuCollectGlobalByProvider('7TV');
+    case 'bttv':    return menuCollectByProvider('BTTV');
+    case 'ffz':     return menuCollectByProvider('FFZ');
+    case '7tv':     return menuCollectByProvider('7TV');
     case 'all':     return menuCollectAll(''); // sem query → lista geral limitada
     default:        return [];
   }
