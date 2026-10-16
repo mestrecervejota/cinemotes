@@ -33,7 +33,11 @@ function resetState() {
 
 // ─── Inicialização ────────────────────────────────────────────────────────────
 
-async function init() {
+let providerRecoveryTimer = null;
+
+async function init(recoveryAttempt = 0) {
+  clearTimeout(providerRecoveryTimer);
+  providerRecoveryTimer = null;
   const token = ++initToken;
 
   clearTimeout(chatPollTimeout);
@@ -60,8 +64,12 @@ async function init() {
 
   const onGlobals = (provider, globals) => {
     if (token !== initToken) return;
+    // A temporary failure must not erase a catalog already loaded on this page.
+    if (!globals?.length && globalEmotesByProvider.get(provider)?.length) return;
     const addedNew = applyGlobalsProviderInternal(provider, globals);
     if (addedNew) emoteVersion++;
+    if (observedChat?.isConnected) scheduleParseInitial(observedChat);
+    if (menuOpen) menuRenderResults();
   };
 
   const onGlobalsDone = () => {
@@ -88,6 +96,8 @@ async function init() {
     }
     rebuildChannelEmotes();
     emoteVersion++;
+    if (observedChat?.isConnected) scheduleParseInitial(observedChat);
+    if (menuOpen) menuRenderResults();
     channelArrived = true;
     startObserverOnce();
   };
@@ -114,6 +124,12 @@ async function init() {
     globalsArrived = true;
     channelArrived = true;
     startObserverOnce();
+  }
+  // An empty first load otherwise stays empty for the entire visit.
+  if (token === initToken && recoveryAttempt < 2 && !globalEmotesByProvider.get('7tv')?.length) {
+    providerRecoveryTimer = setTimeout(() => {
+      if (token === initToken) init(recoveryAttempt + 1);
+    }, 30000);
   }
 }
 

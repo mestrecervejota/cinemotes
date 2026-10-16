@@ -2,8 +2,9 @@
 
 // ─── Constantes ───────────────────────────────────────────────────────────────
 
-const CHAT_SELECTOR    = 'div[data-testid="virtuoso-item-list"]';
-const MESSAGE_SELECTOR = 'div[data-item-index]';
+// Support both the current virtual list and the previous Virtuoso layout.
+const CHAT_SELECTOR    = 'div[class*="styles__Track-sc-4e08ffc2-"], div[data-testid="virtuoso-item-list"]';
+const MESSAGE_SELECTOR = 'div[data-index][class*="styles__Item-sc-4e08ffc2-"], div[data-item-index]';
 
 const RESERVED_CHANNELS = new Set([
   'settings', 'explore', 'login', 'register',
@@ -17,7 +18,7 @@ const CHAT_POLL_INTERVAL     = 800;
 const URL_POLL_INTERVAL      = 5000;
 const PARSER_BUDGET_MS       = 6;
 const INIT_DEBOUNCE_MS       = 150;
-const SW_MESSAGE_TIMEOUT     = 12000;
+const SW_MESSAGE_TIMEOUT     = 20000;
 const MAX_EMOTE_CODE_LEN     = 32;
 const TOOLTIP_WIDTH          = 180;
 

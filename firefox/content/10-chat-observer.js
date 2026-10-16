@@ -36,18 +36,18 @@ function scheduleWarmup() {
 
 function initChatObserver() {
   clearTimeout(chatPollTimeout);
-  chatPollTimeout = null;
+  // Detect replaced chat containers without rescanning unchanged messages.
+  chatPollTimeout = setTimeout(initChatObserver, CHAT_POLL_INTERVAL);
 
   const chat = document.querySelector(CHAT_SELECTOR);
   if (!chat) {
-    chatPollTimeout = setTimeout(initChatObserver, CHAT_POLL_INTERVAL);
+    chatObserver?.disconnect();
+    chatObserver = null;
+    observedChat = null;
     return;
   }
 
-  if (observedChat === chat && chatObserver) {
-    scheduleParseInitial(chat);
-    return;
-  }
+  if (observedChat === chat && chatObserver) return;
 
   chatObserver?.disconnect();
   observedChat = chat;
