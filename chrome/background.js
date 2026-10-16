@@ -22,7 +22,7 @@ const SESSION_PREFIX_CH   = 'ch:';                // legado — só para limpeza
 const SESSION_CLEANUP_INTERVAL = 10 * 60 * 1000;  // 10min
 const SESSION_WRITE_FLUSH_MS   = 150;             // batching de escritas
 
-const CINEMOTES_API_URL = 'https://ragnardragus.github.io/cineemote-api/cinemotesCE.json';
+const CINEMOTES_API_URL = 'https://cinemotes-ledger-api.ragnardragus.workers.dev/api/emotes';
 const CINEMOTES_CACHE_TTL = 5 * 60 * 1000; // Refresh on the next catalog request after 5 minutes.
 
 const GLOBAL_PROVIDERS      = ['bttv', 'ffz', '7tv', 'cinemotes'];
