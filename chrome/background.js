@@ -372,6 +372,7 @@ function buildBTTV(list, scope, channelName) {
         url:        `https://cdn.betterttv.net/emote/${e.id}/1x.webp`,
         previewUrl: `https://cdn.betterttv.net/emote/${e.id}/3x.webp`,
         provider:   'BTTV',
+        modifier:   e.modifier === true,
         scope,
         author:     e.user?.displayName || e.user?.name ||
                     (scope === 'Canal' ? channelName : 'BetterTTV')
@@ -395,6 +396,8 @@ function buildFFZ(sets, scope, channelName) {
           url:        normalizeUrl(url),
           previewUrl: normalizeUrl(e.urls?.['4'] || e.urls?.[2] || url),
           provider:   'FFZ',
+          modifier:   e.modifier === true || Number(e.modifier_flags) > 0,
+          modifierFlags: Number(e.modifier_flags) || 0,
           scope,
           author:     e.owner?.display_name || e.owner?.name ||
                       (scope === 'Canal' ? channelName : 'FrankerFaceZ')
@@ -547,13 +550,18 @@ async function fetchCinemotesCatalog(channelName = '', { refresh = false } = {})
   finally { globalInflight.delete(provider); }
 }
 
+function globalCatalogHasModifierMetadata(provider, entry) {
+  return !['bttv', 'ffz'].includes(provider) ||
+    (Array.isArray(entry?.staging) && entry.staging.every(e => typeof e.data?.modifier === 'boolean'));
+}
+
 async function fetchProviderGlobal(provider) {
   if (provider === 'cinemotes') return (await fetchCinemotesCatalog()).filter(e => e.data.scope === 'Global');
   const now = Date.now();
 
   const cached = memGlobalCache.get(provider);
   if (cached) {
-    if (now - cached.ts < GLOBAL_CACHE_TTL) return cached.staging;
+    if (now - cached.ts < GLOBAL_CACHE_TTL && globalCatalogHasModifierMetadata(provider, cached)) return cached.staging;
     // Retain expired data as a fallback while refreshing.
   }
 
@@ -575,7 +583,7 @@ async function fetchProviderGlobal(provider) {
       if (entry &&
           Date.now() - entry.ts < GLOBAL_CACHE_TTL &&
           Array.isArray(entry.staging) &&
-          entry.staging.length > 0) {
+          entry.staging.length > 0 && globalCatalogHasModifierMetadata(provider, entry)) {
         memGlobalCache.set(provider, entry);
         return entry.staging;
       }
@@ -596,7 +604,7 @@ async function fetchProviderGlobal(provider) {
         typeof storedEntry.ts !== 'number' ||
         (Date.now() - storedEntry.ts) >= GLOBAL_CACHE_TTL;
       const storedSigChanged = !storedEntry || storedEntry.sig !== sig;
-      const needsWrite = storedExpired || storedSigChanged;
+      const needsWrite = storedExpired || storedSigChanged || !globalCatalogHasModifierMetadata(provider, storedEntry);
 
       if (needsWrite) {
         try {

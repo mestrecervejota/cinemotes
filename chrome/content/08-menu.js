@@ -406,11 +406,16 @@ const MENU_GROUP_PROVIDERS = { cinefy: 'Cinefy', cinemotes: 'Cinemotes', bttv: '
 const menuGroupOpen = new Map();
 
 function menuCollectProviderGroup(provider, scope) {
-  const catalogs = scope === 'Canal' ? channelEmotesByProvider : globalEmotesByProvider;
+  const catalogs = scope === 'Efeitos'
+    ? new Map([...globalEmotesByProvider].map(([key, list]) => ['global:' + key, list]).concat(
+        [...channelEmotesByProvider].map(([key, list]) => ['channel:' + key, list])))
+    : scope === 'Canal' ? channelEmotesByProvider : globalEmotesByProvider;
   const unique = new Map();
   for (const list of catalogs.values()) {
     for (const item of list) {
-      if (item.data.provider === provider && item.data.scope === scope) unique.set(item.code, item);
+      if (item.data.provider !== provider) continue;
+      const effect = ['BTTV', 'FFZ'].includes(provider) && item.data.modifier === true;
+      if (scope === 'Efeitos' ? effect : !effect && item.data.scope === scope) unique.set(item.code, item);
     }
   }
   return [...unique.values()].sort((a, b) => a.code.localeCompare(b.code));
@@ -431,6 +436,7 @@ function menuRenderItem({ code, data }) {
 
 function menuRenderProviderGroups(grid, provider) {
   const groups = [{ scope: 'Canal', label: 'Emotes do canal' }, { scope: 'Global', label: 'Emotes globais' }];
+  if (['BTTV', 'FFZ'].includes(provider)) groups.push({ scope: 'Efeitos', label: 'Efeitos de emotes' });
   grid.innerHTML = groups.map(({ scope, label }) => {
     const items = menuCollectProviderGroup(provider, scope);
     const key = provider + ':' + scope;
