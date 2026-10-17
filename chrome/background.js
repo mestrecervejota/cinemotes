@@ -431,25 +431,33 @@ function build7TV(list, scope, channelName) {
 // Retorna { staging, sig } — a assinatura é computada na mesma passada,
 // evitando uma segunda varredura O(N) em cada refresh.
 // Remote catalog keeps the same fields as the original CSV.
-function buildCinemotes(list) {
+function buildCinemotes(list, channelName = '') {
   if (!Array.isArray(list)) throw new Error('Cinemotes API: expected an array');
+  const requested = channelName.toLowerCase();
+  const eligible = list.filter(emote => {
+    const channel = typeof emote?.channel === 'string' ? emote.channel.trim().toLowerCase() : 'globalce';
+    return channel === 'globalce' || (!!requested && channel === requested);
+  });
   const out = [], seen = new Set();
-  for (const emote of list) {
+  for (const emote of eligible) {
+    const channel = typeof emote.channel === 'string' ? emote.channel.trim() : 'GlobalCE';
+    const scope = channel.toLowerCase() === 'globalce' ? 'Global' : 'Canal';
+    const identity = scope + ':' + emote.emote_name;
     const code = typeof emote?.emote_name === 'string' ? emote.emote_name.trim() : '';
-    if (!/^[a-zA-Z0-9_]{1,32}$/.test(code) || seen.has(code)) continue;
+    if (!/^[a-zA-Z0-9_]{1,32}$/.test(code) || seen.has(identity)) continue;
     try {
       if (typeof emote.url !== 'string') continue;
       const url = new URL(emote.url.trim());
       if (url.protocol !== 'https:' || url.username || url.password) continue;
-      seen.add(code);
+      seen.add(identity);
       out.push({ code, data: {
-        url: url.href, previewUrl: url.href, provider: 'Cinemotes', scope: 'Global',
+        url: url.href, previewUrl: url.href, provider: 'Cinemotes', scope,
         author: typeof emote.author === 'string' ? emote.author.trim() : '',
         channel: typeof emote.channel === 'string' && emote.channel.trim() ? emote.channel.trim() : 'GlobalCE'
       } });
     } catch {}
   }
-  if (list.length && !out.length) throw new Error('Cinemotes API: no valid emotes');
+  if (eligible.length && !out.length) throw new Error('Cinemotes API: no valid emotes');
   return out;
 }
 
@@ -489,8 +497,10 @@ async function buildProviderGlobal(provider) {
 }
 
 // Keep the last valid response, including an intentionally empty catalog.
-async function fetchCinemotesGlobal() {
-  const provider = 'cinemotes';
+async function fetchCinemotesCatalog(channelName = '', { refresh = false } = {}) {
+  const channel = /^[a-z0-9_]{1,25}$/.test(String(channelName).toLowerCase()) ? String(channelName).toLowerCase() : '';
+  // Separate schema and channel keys: old all-global caches must not leak other channels.
+  const provider = 'cinemotes:v2:' + (channel || 'globalce');
   const existing = globalInflight.get(provider);
   if (existing) return existing;
   const promise = (async () => {
@@ -507,11 +517,16 @@ async function fetchCinemotesGlobal() {
     }
     if (cached) memGlobalCache.set(provider, cached);
     const now = Date.now();
-    if (cached && now - cached.ts < CINEMOTES_CACHE_TTL) return cached.staging;
+    if (!refresh && cached && now - cached.ts < CINEMOTES_CACHE_TTL) return cached.staging;
     const failedAt = globalFailTs.get(provider);
-    if (failedAt && now - failedAt < GLOBAL_FAIL_TTL) return cached?.staging || [];
+    if (!refresh && failedAt && now - failedAt < GLOBAL_FAIL_TTL) return cached?.staging || [];
     try {
-      const { staging, sig } = await buildProviderGlobal(provider);
+      const url = new URL(CINEMOTES_API_URL);
+      url.searchParams.set('channel', channel || 'GlobalCE');
+      const response = await fetchWithTimeout(url.href, { cache: 'no-store' });
+      if (!response.ok) throw new Error('Cinemotes API: HTTP ' + response.status);
+      const staging = buildCinemotes(await response.json(), channel);
+      const sig = stagingSignature(staging);
       const entry = { ts: Date.now(), staging, sig };
       memGlobalCache.set(provider, entry);
       globalFailTs.delete(provider);
@@ -533,7 +548,7 @@ async function fetchCinemotesGlobal() {
 }
 
 async function fetchProviderGlobal(provider) {
-  if (provider === 'cinemotes') return fetchCinemotesGlobal();
+  if (provider === 'cinemotes') return (await fetchCinemotesCatalog()).filter(e => e.data.scope === 'Global');
   const now = Date.now();
 
   const cached = memGlobalCache.get(provider);
@@ -712,8 +727,12 @@ function handleEmotesPort(port) {
       try { port.postMessage(payload); } catch {}
     };
 
+    // Refresh on each live load/navigation; local storage remains an offline fallback.
+    const cinemotesCatalog = fetchCinemotesCatalog(channelName || '', { refresh: true });
     const globalsPromises = GLOBAL_PROVIDERS.map(provider =>
-      fetchProviderGlobal(provider).then(list => {
+      (provider === 'cinemotes'
+        ? cinemotesCatalog.then(list => list.filter(e => e.data.scope === 'Global'))
+        : fetchProviderGlobal(provider)).then(list => {
         safePost({ type: 'GLOBALS', provider, globals: list });
       })
     );
@@ -722,21 +741,18 @@ function handleEmotesPort(port) {
       safePost({ type: 'GLOBALS_DONE' });
     });
 
-    if (!channelName) {
-      safePost({ type: 'CHANNEL', channel: [] });
-      return;
-    }
-
-    (async () => {
+    // Custom emotes work even if the Cinefy channel has no matching Twitch account.
+    const twitchCatalog = (async () => {
+      if (!channelName) return [];
       const id = await getTwitchId(channelName);
-      if (!id) return [];
-      return fetchChannelStaging(id, channelName);
-    })()
-      .then(channel => safePost({ type: 'CHANNEL', channel }))
-      .catch(err => {
-        console.debug('[Cinemotes/SW] canal falhou:', err?.message || err);
-        safePost({ type: 'CHANNEL', channel: [] });
-      });
+      return id ? await fetchChannelStaging(id, channelName) : [];
+    })().catch(error => {
+      console.debug('[Cinemotes/SW] channel catalog failed:', error.message);
+      return [];
+    });
+    Promise.all([twitchCatalog, cinemotesCatalog]).then(([twitch, custom]) => {
+      safePost({ type: 'CHANNEL', channel: [...twitch, ...custom.filter(e => e.data.scope === 'Canal')] });
+    });
   });
 }
 

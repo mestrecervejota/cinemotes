@@ -402,11 +402,62 @@ function menuBuildSrcset(url, provider) {
   return '';
 }
 
+const MENU_GROUP_PROVIDERS = { cinefy: 'Cinefy', cinemotes: 'Cinemotes', bttv: 'BTTV', ffz: 'FFZ', '7tv': '7TV' };
+const menuGroupOpen = new Map();
+
+function menuCollectProviderGroup(provider, scope) {
+  const catalogs = scope === 'Canal' ? channelEmotesByProvider : globalEmotesByProvider;
+  const unique = new Map();
+  for (const list of catalogs.values()) {
+    for (const item of list) {
+      if (item.data.provider === provider && item.data.scope === scope) unique.set(item.code, item);
+    }
+  }
+  return [...unique.values()].sort((a, b) => a.code.localeCompare(b.code));
+}
+
+function menuEscapeHtml(value) {
+  return String(value).replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
+}
+
+function menuRenderItem({ code, data }) {
+  const srcset = menuBuildSrcset(data.url, data.provider);
+  const scope = data.scope === 'Canal' ? 'canal' : 'global';
+  return '<button type="button" class="' + MENU_ITEM_CLS + '" data-code="' + menuEscapeHtml(code) +
+    '" data-provider="' + menuEscapeHtml(data.provider) + '" title="' + menuEscapeHtml(code + ' (' + data.provider + ' - ' + scope + ')') + '">' +
+    '<div class="cinemotes-menu-thumb"><img loading="lazy" decoding="async" src="' + menuEscapeHtml(data.url) + '"' +
+    (srcset ? ' srcset="' + menuEscapeHtml(srcset) + '"' : '') + ' alt=""></div></button>';
+}
+
+function menuRenderProviderGroups(grid, provider) {
+  const groups = [{ scope: 'Canal', label: 'Emotes do canal' }, { scope: 'Global', label: 'Emotes globais' }];
+  grid.innerHTML = groups.map(({ scope, label }) => {
+    const items = menuCollectProviderGroup(provider, scope);
+    const key = provider + ':' + scope;
+    return '<details class="cinemotes-menu-group" data-group="' + key + '"' + (menuGroupOpen.get(key) !== false ? ' open' : '') + '>' +
+      '<summary><span>' + label + '</span><span class="cinemotes-menu-group-count">' + items.length + '</span>' +
+      '<span class="cinemotes-menu-group-arrow" aria-hidden="true">&#8250;</span></summary>' +
+      '<div class="cinemotes-menu-group-grid">' + (items.length ? items.map(menuRenderItem).join('') :
+        '<div class="' + MENU_EMPTY_CLS + '">Nenhum emote neste grupo.</div>') + '</div></details>';
+  }).join('');
+  for (const group of grid.querySelectorAll('details[data-group]')) {
+    group.addEventListener('toggle', () => {
+      if (group.isConnected) menuGroupOpen.set(group.dataset.group, group.open);
+    });
+  }
+}
+
 function menuRenderResults() {
   if (!menuPanel) return;
   const grid = menuPanel.querySelector(`.${MENU_GRID_CLS}`);
   if (!grid) return;
 
+  const provider = !menuSearchQuery && MENU_GROUP_PROVIDERS[menuActiveTab];
+  grid.classList.toggle('cinemotes-menu-grid-grouped', !!provider);
+  if (provider) {
+    menuRenderProviderGroups(grid, provider);
+    return;
+  }
   const items = menuCollectForActiveTab();
 
   if (!items.length) {
@@ -419,19 +470,7 @@ function menuRenderResults() {
     return;
   }
 
-  let html = '';
-  for (const { code, data } of items) {
-    const scopeLabel = data.scope === 'Canal' ? 'canal' : 'global';
-    const srcset = menuBuildSrcset(data.url, data.provider);
-    const srcsetAttr = srcset ? ` srcset="${srcset}"` : '';
-    html +=
-      `<button type="button" class="${MENU_ITEM_CLS}" data-code="${code}"` +
-      ` data-provider="${data.provider}" title="${code} (${data.provider} · ${scopeLabel})">` +
-        `<div class="cinemotes-menu-thumb">` +
-          `<img loading="lazy" decoding="async" src="${data.url}"${srcsetAttr} alt="">` +
-        `</div>` +
-      `</button>`;
-  }
+  const html = items.map(menuRenderItem).join('');
   grid.innerHTML = html;
 }
 

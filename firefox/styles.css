@@ -353,3 +353,33 @@ button[aria-label="Emotes"][aria-haspopup="dialog"]:not([data-cinemotes-menu-btn
   height: 20px;
   display: block;
 }
+
+/* Collapsible provider groups; flat catalogs keep their existing grid. */
+.cinemotes-menu-grid.cinemotes-menu-grid-grouped { display: block; }
+.cinemotes-menu-group { margin: 0 0 4px; }
+.cinemotes-menu-group > summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 4px;
+  color: #eee;
+  cursor: pointer;
+  list-style: none;
+  font-size: 12px;
+  font-weight: 600;
+}
+.cinemotes-menu-group > summary::-webkit-details-marker { display: none; }
+.cinemotes-menu-group > summary:hover { background: rgba(255,255,255,.04); }
+.cinemotes-menu-group > summary:focus-visible { outline: 1px solid #00f0ff; outline-offset: -1px; }
+.cinemotes-menu-group-count { margin-left: auto; color: #aaa; font-weight: 400; }
+.cinemotes-menu-group-arrow { color: #aaa; font-size: 18px; line-height: 1; }
+.cinemotes-menu-group[open] > summary .cinemotes-menu-group-arrow { transform: rotate(90deg); }
+.cinemotes-menu-group-grid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  grid-auto-rows: 42px;
+  gap: 2px;
+  padding: 2px 0 6px;
+}
+.cinemotes-menu-group-grid .cinemotes-menu-item { min-width: 0; }
+.cinemotes-menu-group-grid .cinemotes-menu-empty { padding: 10px 4px; }

@@ -43,6 +43,8 @@ function applyCinefyGlobals(payload) {
   const list = buildCinefyList(arr, 'Global');
   const addedNew = applyGlobalsProviderInternal('Cinefy', list);
   if (addedNew) emoteVersion++;
+  if (observedChat?.isConnected) scheduleParseInitial(observedChat);
+  if (menuOpen) menuRenderResults();
   console.log('[Cinemotes] globais do Cinefy:', list.length);
 }
 
@@ -55,6 +57,8 @@ function applyCinefyChannel(channel, payload) {
   const list = buildCinefyList(arr, 'Canal');
   applyChannelProviderInternal('Cinefy', list);
   emoteVersion++;
+  if (observedChat?.isConnected) scheduleParseInitial(observedChat);
+  if (menuOpen) menuRenderResults();
   console.log('[Cinemotes] emotes do Cinefy no canal:', list.length);
 }
 
