@@ -179,6 +179,9 @@ function parseMessage(message, deadline) {
     acceptNode(node) {
       const v = node.nodeValue;
       if (!v || !v.length) return NodeFilter.FILTER_REJECT;
+      // A matching username is not an emote: require the native message-content container.
+      const content = node.parentElement?.closest(MESSAGE_CONTENT_SELECTOR);
+      if (!content || !message.contains(content)) return NodeFilter.FILTER_REJECT;
       if (processedNodes.get(node) === version) return NodeFilter.FILTER_REJECT;
       if (isSkippableParent(node.parentElement)) return NodeFilter.FILTER_REJECT;
       if (!textMayContainEmote(v)) return NodeFilter.FILTER_REJECT;

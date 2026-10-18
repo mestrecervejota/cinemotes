@@ -6,6 +6,9 @@
 const CHAT_SELECTOR    = 'div[class*="styles__Track-sc-4e08ffc2-"], div[data-testid="virtuoso-item-list"]';
 const MESSAGE_SELECTOR = 'div[data-index][class*="styles__Item-sc-4e08ffc2-"], div[data-item-index]';
 
+// Only message bodies can contain replaceable emote codes. Author labels stay intact.
+const MESSAGE_CONTENT_SELECTOR = '[class*="styles__Content-sc-b33861be-"]';
+
 const RESERVED_CHANNELS = new Set([
   'settings', 'explore', 'login', 'register',
   'admin', 'messages', 'notifications', 'home',
@@ -27,7 +30,7 @@ const SW_RETRY_BACKOFF_MS    = 300;
 
 const CHANNEL_NAME_RE = /^[a-z0-9_]{1,25}$/;
 
-const SKIP_SELECTOR = 'script,style,a,code,pre,.bttv-emote';
+const SKIP_SELECTOR = 'script,style,a,code,pre,.bttv-emote,[class*="styles__Author-"],[class*="styles__Username-"]';
 
 const UNICODE_WS_CODES = new Set([
   0x1680,
