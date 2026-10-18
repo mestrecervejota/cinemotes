@@ -637,20 +637,57 @@ async function fetchProviderGlobal(provider) {
 
 // ─── Emotes do canal ─────────────────────────────────────────────────────────
 
-async function fetchChannelStaging(channelId, channelName) {
-  if (!channelId) return [];
+// FFZ supports lookup by channel name, even when Twitch ID resolution is unavailable.
+async function fetchFFZChannel(channelName, channelId) {
+  if (!channelName && !channelId) return [];
+  const byName = channelName ? 'https://api.frankerfacez.com/v1/room/' + encodeURIComponent(channelName) : null;
+  const byId = channelId ? 'https://api.frankerfacez.com/v1/room/id/' + encodeURIComponent(channelId) : null;
+  let url = byName || byId;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 5000);
+    let retry = true;
+    let delay = 500;
+    try {
+      const response = await fetch(url, { signal: controller.signal, credentials: 'omit' });
+      if (response.status === 404) {
+        if (attempt === 0 && url === byName && byId) { url = byId; delay = 0; }
+        else return []; // A channel without an FFZ catalog is a valid empty result.
+      } else {
+        if (!response.ok) {
+          retry = response.status >= 500 || response.status === 429;
+          const retryAfter = response.headers?.get('retry-after');
+          if (retryAfter && (Number(retryAfter) > 1 || Date.parse(retryAfter) > Date.now() + 1000)) retry = false;
+          throw new Error('FFZ channel HTTP ' + response.status);
+        }
+        const data = await response.json();
+        if (!data?.sets || typeof data.sets !== 'object') throw new Error('FFZ channel: missing emote sets');
+        return buildFFZ(data.sets, 'Canal', channelName);
+      }
+    } catch (error) {
+      if (!retry || attempt === 1) throw error;
+    } finally {
+      clearTimeout(timer);
+    }
+    if (delay) await new Promise(resolve => setTimeout(resolve, delay));
+  }
+}
 
-  const cached = channelEmoteCache.get(channelId);
+async function fetchChannelStaging(channelId, channelName) {
+  if (!channelId && !channelName) return [];
+  const cacheKey = (channelName || '').toLowerCase() + ':' + (channelId || 'no-twitch-id');
+
+  const cached = channelEmoteCache.get(cacheKey);
   if (cached) {
     const ttl = cached.partial ? CHANNEL_EMOTES_PARTIAL_TTL : CHANNEL_EMOTES_TTL;
     if (Date.now() - cached.ts < ttl) {
-      touchLru(channelEmoteCache, channelId);
+      touchLru(channelEmoteCache, cacheKey);
       return cached.staging;
     }
-    channelEmoteCache.delete(channelId);
+    channelEmoteCache.delete(cacheKey);
   }
 
-  const inflight = channelInflight.get(channelId);
+  const inflight = channelInflight.get(cacheKey);
   if (inflight) return inflight;
 
   const promise = (async () => {
@@ -660,6 +697,7 @@ async function fetchChannelStaging(channelId, channelName) {
     const [bttvList, ffzList, sevenList] = await Promise.all([
       (async () => {
         try {
+          if (!channelId) return [];
           const r = await fetchWithTimeout(`https://api.betterttv.net/3/cached/users/twitch/${channelId}`);
           if (!r.ok) return null;
           const data = await r.json();
@@ -674,16 +712,15 @@ async function fetchChannelStaging(channelId, channelName) {
       })(),
       (async () => {
         try {
-          const r = await fetchWithTimeout(`https://api.frankerfacez.com/v1/room/id/${channelId}`);
-          if (!r.ok) return null;
-          return buildFFZ((await r.json()).sets, 'Canal', channelName);
+          return await fetchFFZChannel(channelName, channelId);
         } catch (e) {
-          console.debug('[Cinemotes/SW] FFZ canal falhou:', e?.message || e);
+          console.warn('[Cinemotes/SW] FFZ canal falhou:', e?.message || e);
           return null;
         }
       })(),
       (async () => {
         try {
+          if (!channelId) return [];
           const data = await fetch7TVJson(`https://7tv.io/v3/users/twitch/${channelId}`);
           return build7TV(data.emote_set?.emotes, 'Canal', channelName);
         } catch (e) {
@@ -697,18 +734,21 @@ async function fetchChannelStaging(channelId, channelName) {
     if (ffzList)   { successCount++; for (const e of ffzList)   staging.push(e); }
     if (sevenList) { successCount++; for (const e of sevenList) staging.push(e); }
 
+    if (!ffzList && cached?.staging) {
+      for (const entry of cached.staging) if (entry.data.provider === 'FFZ') staging.push(entry);
+    }
     const partial = successCount < 3;
     const entry = { ts: Date.now(), staging, partial };
-    channelEmoteCache.set(channelId, entry);
+    channelEmoteCache.set(cacheKey, entry);
     maybePruneMap(channelEmoteCache, CHANNEL_EMOTES_TTL, CHANNEL_CACHE_MAX);
     return staging;
   })();
 
-  channelInflight.set(channelId, promise);
+  channelInflight.set(cacheKey, promise);
   try {
     return await promise;
   } finally {
-    channelInflight.delete(channelId);
+    channelInflight.delete(cacheKey);
   }
 }
 
@@ -753,7 +793,7 @@ function handleEmotesPort(port) {
     const twitchCatalog = (async () => {
       if (!channelName) return [];
       const id = await getTwitchId(channelName);
-      return id ? await fetchChannelStaging(id, channelName) : [];
+      return await fetchChannelStaging(id, channelName);
     })().catch(error => {
       console.debug('[Cinemotes/SW] channel catalog failed:', error.message);
       return [];
