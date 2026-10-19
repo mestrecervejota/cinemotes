@@ -439,13 +439,16 @@ function menuRenderProviderGroups(grid, provider) {
   if (['BTTV', 'FFZ'].includes(provider)) groups.push({ scope: 'Efeitos', label: 'Efeitos de emotes' });
   grid.innerHTML = groups.map(({ scope, label }) => {
     const items = menuCollectProviderGroup(provider, scope);
+    if (!items.length) return '';
     const key = provider + ':' + scope;
     return '<details class="cinemotes-menu-group" data-group="' + key + '"' + (menuGroupOpen.get(key) !== false ? ' open' : '') + '>' +
       '<summary><span>' + label + '</span><span class="cinemotes-menu-group-count">' + items.length + '</span>' +
       '<span class="cinemotes-menu-group-arrow" aria-hidden="true">&#8250;</span></summary>' +
-      '<div class="cinemotes-menu-group-grid">' + (items.length ? items.map(menuRenderItem).join('') :
-        '<div class="' + MENU_EMPTY_CLS + '">Nenhum emote neste grupo.</div>') + '</div></details>';
+      '<div class="cinemotes-menu-group-grid">' + items.map(menuRenderItem).join('') + '</div></details>';
   }).join('');
+  if (!grid.innerHTML) {
+    grid.innerHTML = '<div class="' + MENU_EMPTY_CLS + '">Nenhum emote dispon\u00edvel.</div>';
+  }
   for (const group of grid.querySelectorAll('details[data-group]')) {
     group.addEventListener('toggle', () => {
       if (group.isConnected) menuGroupOpen.set(group.dataset.group, group.open);
